@@ -1,0 +1,12 @@
+{
+    "name": "my-k8s-cluster",
+    "devDependencies": {
+        "@types/node": "^18",
+        "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "@pulumi/gcp": "^7.0.0",
+        "@pulumi/kubernetes": "^4.11.0",
+        "@pulumi/pulumi": "^3.113.0"
+    }
+}

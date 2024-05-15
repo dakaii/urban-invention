@@ -1,0 +1,4 @@
+config:
+  gcp:project: legendary-project-421910
+  gcp:region: us-central1
+  my-k8s-cluster:nodesPerZone: "3"
