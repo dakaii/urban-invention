@@ -120,14 +120,14 @@ const postgresInstance = new sql.DatabaseInstance("postgres-instance", {
 // Create a database in the Postgres instance
 const postgresDatabase = new sql.Database("postgres-database", {
     instance: postgresInstance.name,
-    name: process.env.DBNAME,
+    name: process.env.DB_NAME,
 });
 
 // Create a user for the Postgres instance
 const postgresUser = new sql.User("postgres-user", {
     instance: postgresInstance.name,
-    name: process.env.DBUSER,
-    password: process.env.DBPASS,
+    name: process.env.DB_USER,
+    password: process.env.DB_PASS,
 });
 
 // Create a Kubernetes provider instance that uses our cluster from above
