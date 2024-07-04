@@ -67,24 +67,6 @@ const gkeCluster = new gcp.container.Cluster("gke-cluster", {
     },
 });
 
-// // Create a service account for the node pool
-// const gkeNodepoolSa = new gcp.serviceaccount.Account("gke-nodepool-sa", {
-//     accountId: pulumi.interpolate`${gkeCluster.name}-np-1-sa`,
-//     displayName: "Nodepool 1 Service Account",
-// });
-
-// // Create a nodepool for the GKE cluster
-// const gkeNodepool = new gcp.container.NodePool("gke-nodepool", {
-//     cluster: gkeCluster.id,
-//     nodeCount: nodesPerZone,
-//     nodeConfig: {
-//         diskSizeGb: 50,
-//         diskType: "pd-ssd",
-//         oauthScopes: ["https://www.googleapis.com/auth/cloud-platform"],
-//         serviceAccount: gkeNodepoolSa.email,
-//     },
-// });
-
 // Build a Kubeconfig for accessing the cluster
 const clusterKubeconfig = pulumi.interpolate`apiVersion: v1
 clusters:
