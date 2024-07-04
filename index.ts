@@ -27,6 +27,7 @@ const gkeSubnet = new gcp.compute.Subnetwork("gke-subnet", {
 
 // Create a new GKE cluster
 const gkeCluster = new gcp.container.Cluster("gke-cluster", {
+    deletionProtection: false,
     addonsConfig: {
         dnsCacheConfig: {
             enabled: true,
@@ -113,6 +114,7 @@ users:
 
 // Create a Google Cloud SQL Postgres instance
 const postgresInstance = new sql.DatabaseInstance("postgres-instance", {
+    deletionProtection: false,
     databaseVersion: "POSTGRES_13",
     settings: {
         tier: "db-f1-micro",
