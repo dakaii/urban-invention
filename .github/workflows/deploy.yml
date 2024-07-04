@@ -9,18 +9,20 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v4
       with:
-        node-version: 14
+        node-version: 20
 
     - name: Install dependencies
-      run: npm ci
+      # run: npm ci
+      run: npm ci || (echo "npm ci failed. Outputting npm debug log:" && cat $(ls -t /home/runner/.npm/_logs/*.log | head -n 1) && exit 1)
+
 
     - name: Install Pulumi CLI
-      uses: pulumi/action-install-pulumi-cli@v1.0.1
+      uses: pulumi/action-install-pulumi-cli@v2.0.0
 
     - name: Deploy
       run: pulumi up --yes
