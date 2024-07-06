@@ -29,12 +29,7 @@ jobs:
       uses: pulumi/actions@v5
       with:
         command: up
-        stack-name: ${{ secrets.PULUMI_STACK }}
+        stack-name: dev
       env:
         PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-        PORT: 8080
-        AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-        DB_USER: ${{ secrets.DB_USER }}
-        DB_PASS: ${{ secrets.DB_PASS }}
-        DB_NAME: ${{ secrets.DB_NAME }}

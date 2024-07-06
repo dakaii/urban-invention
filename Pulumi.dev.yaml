@@ -1,4 +1,16 @@
 config:
   gcp:project: legendary-project-421910
   gcp:region: us-central1
+  my-k8s-cluster:authSecret: asdf
+  my-k8s-cluster:dbName:
+    secure: AAABAGWR900SE9j178c10YFnwTv5cuS8+QAQSrzVRdYwFPR2L/JxVLOxCsaSWNShWprU
+  my-k8s-cluster:dbPassword:
+    secure: AAABAPgHuTJ73wbIHjMVny2nuAyH/jEigDNBqKoBjv+IANOp2pCqvw==
+  my-k8s-cluster:dbUser:
+    secure: AAABAG4iG1MgDGKJ2PVdtruy0be2Z26e/5pSWKtDrRPjZh9XOlqQsA==
+  my-k8s-cluster:githubEmail:
+    secure: AAABAB5rRHK2maudRzmvpA/ROiYsDv/DBLtsGwYKoimjv1c9vehtPgnNRD39Pyf8axr4uXa9Z8Pqup8a/nzT3IZ0w0UMmjY=
+  my-k8s-cluster:githubUsername:
+    secure: AAABADI/CfmPYTDd+iAsJw7HmpgTgqjt6XN6g9dzqHPzTeb438c=
   my-k8s-cluster:nodesPerZone: "3"
+  my-k8s-cluster:targetPort: "8080"

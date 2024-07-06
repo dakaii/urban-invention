@@ -8,6 +8,16 @@ import * as sql from "@pulumi/gcp/sql";
 const providerCfg = new pulumi.Config("gcp");
 const gcpProject = providerCfg.require("project");
 const gcpRegion = providerCfg.get("region") || "us-central1";
+const config = new pulumi.Config();
+const dbUser = config.requireSecret("dbUser") || "postgres";
+const dbPassword = config.requireSecret("dbPassword") || "postgres";
+const dbName = config.get("dbName") || "graphyy-development";
+const authSecret = config.getSecret("authSecret") || "authsecret";
+const targetPort = config.getNumber("targetPort") || 8080;
+const githubUsername = config.require("githubUsername") || "YOUR_GITHUB_USERNAME";
+const githubPassword = config.requireSecret("githubPassword") || "YOUR_GITHUB_TOKEN";
+const githubEmail = config.require("githubEmail") || "YOUR_GITHUB_EMAIL";
+const appLabels = { app: "graphyy" };
 // Get some other configuration values or use defaults
 const cfg = new pulumi.Config();
 const nodesPerZone = cfg.getNumber("nodesPerZone") || 1;
@@ -67,6 +77,34 @@ const gkeCluster = new gcp.container.Cluster("gke-cluster", {
     },
 });
 
+const gkeNodePoolSa = new gcp.serviceaccount.Account("gke-nodepool-sa", {
+    accountId: pulumi.interpolate`${gkeCluster.name}-np-sa`,
+    displayName: "GKE Nodepool Service Account",
+})
+
+const gkeNodePool = new gcp.container.NodePool("gke-nodepool", {
+    cluster: gkeCluster.name,
+    nodeCount: nodesPerZone,
+    management: {
+        autoRepair: true,
+        autoUpgrade: true,
+    },
+    nodeConfig: {
+        diskSizeGb: 100,
+        diskType: "pd-standard",
+        oauthScopes: [
+            "https://www.googleapis.com/auth/cloud-platform",
+            // "https://www.googleapis.com/auth/devstorage.read_only",
+            // "https://www.googleapis.com/auth/logging.write",
+            // "https://www.googleapis.com/auth/monitoring",
+            // "https://www.googleapis.com/auth/service.management.readonly",
+            // "https://www.googleapis.com/auth/servicecontrol",
+            // "https://www.googleapis.com/auth/sqlservice.admin",
+        ],
+        serviceAccount: gkeNodePoolSa.email,
+    },
+});
+
 // Build a Kubeconfig for accessing the cluster
 const clusterKubeconfig = pulumi.interpolate`apiVersion: v1
 clusters:
@@ -106,14 +144,14 @@ const postgresInstance = new sql.DatabaseInstance("postgres-instance", {
 // Create a database in the Postgres instance
 const postgresDatabase = new sql.Database("postgres-database", {
     instance: postgresInstance.name,
-    name: process.env.DB_NAME,
+    name: dbName,
 });
 
 // Create a user for the Postgres instance
 const postgresUser = new sql.User("postgres-user", {
     instance: postgresInstance.name,
-    name: process.env.DB_USER,
-    password: process.env.DB_PASS,
+    name: dbUser,
+    password: dbPassword,
 });
 
 // Create a Kubernetes provider instance that uses our cluster from above
@@ -121,29 +159,66 @@ const k8sProvider = new k8s.Provider("k8sProvider", {
     kubeconfig: clusterKubeconfig,
 });
 
+const dockerRegistrySecret = new k8s.core.v1.Secret("ghcr-credentials", {
+    metadata: {
+        name: "ghcr-credentials",
+    },
+    type: "kubernetes.io/dockerconfigjson",
+    stringData: {
+        ".dockerconfigjson": pulumi.all([]).apply(() => {
+            let dockerConfig = {
+                auths: {
+                    "ghcr.io": {
+                        username: githubUsername,
+                        password: githubPassword,
+                        email: githubEmail,
+                    },
+                },
+            };
+            return JSON.stringify(dockerConfig);
+        }),
+    },
+}, { provider: k8sProvider });
+
 // Deploy your Docker image
-const dockerImage = new k8s.apps.v1.Deployment("docker-image", {
+const dockerImage = new k8s.apps.v1.Deployment(appLabels.app + "-deployment", {
     spec: {
-        selector: { matchLabels: { app: "docker-image" } },
+        selector: { matchLabels: appLabels },
         replicas: 3,
         template: {
-            metadata: { labels: { app: "docker-image" } },
+            metadata: { labels: appLabels },
             spec: {
                 containers: [{
-                    name: "docker-image",
-                    image: "ghcr.io/dakaii/graphyy:latest",
-                    ports: [{ containerPort: Number(process.env.PORT) }],
+                    name: appLabels.app,
+                    image: "ghcr.io/dakaii/mandoo:latest",
+                    ports: [{ containerPort: targetPort }],
                     env: [
-                        { name: "PORT", value: process.env.PORT },
-                        { name: "AUTH_SECRET", value: process.env.AUTH_SECRET },
+                        { name: "PORT", value: targetPort.toString() },
+                        { name: "AUTH_SECRET", value: authSecret },
                         { name: "DB_HOST", value: postgresInstance.connectionName.apply(v => v || "") },
                         { name: "DB_USER", value: postgresUser.name.apply(v => v || "") },
                         { name: "DB_PASS", value: postgresUser.password.apply(v => v || "") },
                         { name: "DB_NAME", value: postgresDatabase.name.apply(v => v || "") },
                     ],
                 }],
+                imagePullSecrets: [{ name: dockerRegistrySecret.metadata.name }],
             },
         },
+    },
+}, { provider: k8sProvider });
+
+const service = new k8s.core.v1.Service(appLabels.app + "-service", {
+    metadata: {
+        labels: appLabels,
+    },
+    spec: {
+        type: "LoadBalancer",
+        ports: [{
+            port: 80, // The port the service will be exposed on externally
+            targetPort: targetPort, // The target port on the pods to forward to
+            protocol: "TCP",
+        }],
+        selector: appLabels, // This should match the labels of the pods you want to expose
     },
 }, { provider: k8sProvider });
 
@@ -157,11 +232,11 @@ export const postgresInstanceName = postgresInstance.name;
 export const postgresInstanceConnectionName = postgresInstance.connectionName;
 export const postgresDatabaseName = postgresDatabase.name;
 export const postgresUserName = postgresUser.name;
-export const dockerImageName = dockerImage.metadata.name;
-export const dockerImageId = dockerImage.metadata.uid;
-export const dockerImageReplicas = dockerImage.spec.replicas;
-export const dockerImageContainerName = dockerImage.spec.template.spec.containers[0].name;
-export const dockerImageContainerImage = dockerImage.spec.template.spec.containers[0].image;
-export const dockerImageContainerPort = dockerImage.spec.template.spec.containers[0].ports[0].containerPort;
-export const dockerImageContainerEnv = dockerImage.spec.template.spec.containers[0].env;
-
+// export const addServiceName = service.metadata.name;
+// export const dockerImageName = dockerImage.metadata.name;
+// export const dockerImageId = dockerImage.metadata.uid;
+// export const dockerImageReplicas = dockerImage.spec.replicas;
+// export const dockerImageContainerName = dockerImage.spec.template.spec.containers[0].name;
+// export const dockerImageContainerImage = dockerImage.spec.template.spec.containers[0].image;
+// export const dockerImageContainerPort = dockerImage.spec.template.spec.containers[0].ports[0].containerPort;
+// export const dockerImageContainerEnv = dockerImage.spec.template.spec.containers[0].env;
