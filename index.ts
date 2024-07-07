@@ -168,7 +168,7 @@ const postgresInstance = new sql.DatabaseInstance("postgres-instance", {
     settings: {
         tier: "db-f1-micro",
         ipConfiguration: {
-            ipv4Enabled: true,
+            ipv4Enabled: false,
             privateNetwork: myServiceNetworkingConnection.network,
             authorizedNetworks: [],
         }
