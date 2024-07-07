@@ -9,7 +9,9 @@ config:
   my-k8s-cluster:dbUser:
     secure: AAABAG4iG1MgDGKJ2PVdtruy0be2Z26e/5pSWKtDrRPjZh9XOlqQsA==
   my-k8s-cluster:githubEmail:
-    secure: AAABAB5rRHK2maudRzmvpA/ROiYsDv/DBLtsGwYKoimjv1c9vehtPgnNRD39Pyf8axr4uXa9Z8Pqup8a/nzT3IZ0w0UMmjY=
+    secure: AAABABXjtWFjWmIohPny5UGJ/yWfCRzHI/b+OIpkiu9guR7Mn0tBV2JrtSaMzSZedty/Anvb6yUfbg==
+  my-k8s-cluster:githubPassword:
+    secure: AAABAOoyRPutuBQduf0BLq4j7WpWVx/+6jFckYOZKSgXuXAn5tjTEvuQN94B0kVJRxlaBFBWOz6XA4s2pOkUxuJZRpR0XlFO
   my-k8s-cluster:githubUsername:
     secure: AAABADI/CfmPYTDd+iAsJw7HmpgTgqjt6XN6g9dzqHPzTeb438c=
   my-k8s-cluster:nodesPerZone: "3"

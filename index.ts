@@ -28,6 +28,19 @@ const gkeNetwork = new gcp.compute.Network("gke-network", {
     description: "A virtual network for your GKE cluster(s)",
 });
 
+const router = new gcp.compute.Router("router", {
+    network: gkeNetwork.id,
+    region: gcpRegion,
+});
+
+// Cloud NAT Gateway
+const natGateway = new gcp.compute.RouterNat("nat-gateway", {
+    router: router.name,
+    region: gcpRegion,
+    natIpAllocateOption: "AUTO_ONLY",
+    sourceSubnetworkIpRangesToNat: "ALL_SUBNETWORKS_ALL_IP_RANGES",
+});
+
 // Create a new subnet in the network created above
 const gkeSubnet = new gcp.compute.Subnetwork("gke-subnet", {
     ipCidrRange: "10.128.0.0/12",
@@ -90,7 +103,7 @@ const gkeNodePool = new gcp.container.NodePool("gke-nodepool", {
         autoUpgrade: true,
     },
     nodeConfig: {
-        diskSizeGb: 100,
+        diskSizeGb: 200,
         diskType: "pd-standard",
         oauthScopes: [
             "https://www.googleapis.com/auth/cloud-platform",
@@ -131,6 +144,22 @@ users:
       provideClusterInfo: true
 `;
 
+const serviceNetworkingApi = new gcp.projects.Service("serviceNetworkingApi", {
+    service: "servicenetworking.googleapis.com",
+});
+
+const gkeVpcPeeringRange = new gcp.compute.GlobalAddress("gke-vpc-peering-range", {
+    purpose: "VPC_PEERING",
+    addressType: "INTERNAL",
+    prefixLength: 16,
+    network: gkeNetwork.selfLink,
+});
+
+const myServiceNetworkingConnection = new gcp.servicenetworking.Connection("myServiceNetworkingConnection", {
+    network: gkeNetwork.selfLink,
+    service: "servicenetworking.googleapis.com",
+    reservedPeeringRanges: [gkeVpcPeeringRange.name],
+}, { dependsOn: [serviceNetworkingApi] });
 
 // Create a Google Cloud SQL Postgres instance
 const postgresInstance = new sql.DatabaseInstance("postgres-instance", {
@@ -138,8 +167,13 @@ const postgresInstance = new sql.DatabaseInstance("postgres-instance", {
     databaseVersion: "POSTGRES_13",
     settings: {
         tier: "db-f1-micro",
+        ipConfiguration: {
+            ipv4Enabled: true,
+            privateNetwork: myServiceNetworkingConnection.network,
+            authorizedNetworks: [],
+        }
     },
-});
+}, { dependsOn: [myServiceNetworkingConnection] });
 
 // Create a database in the Postgres instance
 const postgresDatabase = new sql.Database("postgres-database", {
@@ -165,13 +199,13 @@ const dockerRegistrySecret = new k8s.core.v1.Secret("ghcr-credentials", {
     },
     type: "kubernetes.io/dockerconfigjson",
     stringData: {
-        ".dockerconfigjson": pulumi.all([]).apply(() => {
-            let dockerConfig = {
+        ".dockerconfigjson": pulumi.all([githubUsername, githubPassword, githubEmail]).apply(([username, password, email]) => {
+            const dockerConfig = {
                 auths: {
                     "ghcr.io": {
-                        username: githubUsername,
-                        password: githubPassword,
-                        email: githubEmail,
+                        username,
+                        password,
+                        email,
                     },
                 },
             };
@@ -195,10 +229,10 @@ const dockerImage = new k8s.apps.v1.Deployment(appLabels.app + "-deployment", {
                     env: [
                         { name: "PORT", value: targetPort.toString() },
                         { name: "AUTH_SECRET", value: authSecret },
-                        { name: "DB_HOST", value: postgresInstance.connectionName.apply(v => v || "") },
-                        { name: "DB_USER", value: postgresUser.name.apply(v => v || "") },
-                        { name: "DB_PASS", value: postgresUser.password.apply(v => v || "") },
-                        { name: "DB_NAME", value: postgresDatabase.name.apply(v => v || "") },
+                        { name: "POSTGRES_HOST", value: gkeVpcPeeringRange.address.apply(v => v || "") },
+                        { name: "POSTGRES_USER", value: postgresUser.name.apply(v => v || "") },
+                        { name: "POSTGRES_PASSWORD", value: postgresUser.password.apply(v => v || "") },
+                        { name: "POSTGRES_DB", value: postgresDatabase.name.apply(v => v || "") },
                     ],
                 }],
                 imagePullSecrets: [{ name: dockerRegistrySecret.metadata.name }],
@@ -232,11 +266,11 @@ export const postgresInstanceName = postgresInstance.name;
 export const postgresInstanceConnectionName = postgresInstance.connectionName;
 export const postgresDatabaseName = postgresDatabase.name;
 export const postgresUserName = postgresUser.name;
-// export const addServiceName = service.metadata.name;
-// export const dockerImageName = dockerImage.metadata.name;
-// export const dockerImageId = dockerImage.metadata.uid;
-// export const dockerImageReplicas = dockerImage.spec.replicas;
-// export const dockerImageContainerName = dockerImage.spec.template.spec.containers[0].name;
-// export const dockerImageContainerImage = dockerImage.spec.template.spec.containers[0].image;
-// export const dockerImageContainerPort = dockerImage.spec.template.spec.containers[0].ports[0].containerPort;
-// export const dockerImageContainerEnv = dockerImage.spec.template.spec.containers[0].env;
+export const addServiceName = service.metadata.name;
+export const dockerImageName = dockerImage.metadata.name;
+export const dockerImageId = dockerImage.metadata.uid;
+export const dockerImageReplicas = dockerImage.spec.replicas;
+export const dockerImageContainerName = dockerImage.spec.template.spec.containers[0].name;
+export const dockerImageContainerImage = dockerImage.spec.template.spec.containers[0].image;
+export const dockerImageContainerPort = dockerImage.spec.template.spec.containers[0].ports[0].containerPort;
+export const dockerImageContainerEnv = dockerImage.spec.template.spec.containers[0].env;
