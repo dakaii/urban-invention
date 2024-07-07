@@ -214,6 +214,9 @@ const dockerRegistrySecret = new k8s.core.v1.Secret("ghcr-credentials", {
     },
 }, { provider: k8sProvider });
 
+const privateIp = postgresInstance.ipAddresses.apply(ipAddresses =>
+    ipAddresses.find(ip => ip.type === "PRIVATE")?.ipAddress
+);
 // Deploy your Docker image
 const dockerImage = new k8s.apps.v1.Deployment(appLabels.app + "-deployment", {
     spec: {
@@ -229,7 +232,7 @@ const dockerImage = new k8s.apps.v1.Deployment(appLabels.app + "-deployment", {
                     env: [
                         { name: "PORT", value: targetPort.toString() },
                         { name: "AUTH_SECRET", value: authSecret },
-                        { name: "POSTGRES_HOST", value: gkeVpcPeeringRange.address.apply(v => v || "") },
+                        { name: "POSTGRES_HOST", value: privateIp.apply(v => v || "") },
                         { name: "POSTGRES_USER", value: postgresUser.name.apply(v => v || "") },
                         { name: "POSTGRES_PASSWORD", value: postgresUser.password.apply(v => v || "") },
                         { name: "POSTGRES_DB", value: postgresDatabase.name.apply(v => v || "") },
