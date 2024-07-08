@@ -15,4 +15,8 @@ config:
   my-k8s-cluster:githubUsername:
     secure: AAABADI/CfmPYTDd+iAsJw7HmpgTgqjt6XN6g9dzqHPzTeb438c=
   my-k8s-cluster:nodesPerZone: "3"
+  my-k8s-cluster:registeredDomain:
+    secure: AAABABE4HmweWMjFaDZMabMltltFZU6/IdhjH/v7rhuqgVv/T5H2NBxAm7CqDY5z
+  my-k8s-cluster:registeredDomainEmail:
+    secure: AAABANYMX2ItXhGauPnqiZT8PJFHpwsGymlUT7fRbqrQGRXO5uStaJ+uRsiL0Bg5y+o=
   my-k8s-cluster:targetPort: "8080"

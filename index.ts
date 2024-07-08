@@ -18,9 +18,19 @@ const githubUsername = config.require("githubUsername") || "YOUR_GITHUB_USERNAME
 const githubPassword = config.requireSecret("githubPassword") || "YOUR_GITHUB_TOKEN";
 const githubEmail = config.require("githubEmail") || "YOUR_GITHUB_EMAIL";
 const appLabels = { app: "graphyy" };
+// const registeredDomain = config.get("registeredDomain") || "YOUR_REGISTERED_DOMAIN";
+// const registeredDomainEmail = config.get("registeredDomainEmail") || "YOUR_REGISTERED_DOMAIN_EMAIL";
 // Get some other configuration values or use defaults
 const cfg = new pulumi.Config();
 const nodesPerZone = cfg.getNumber("nodesPerZone") || 1;
+
+// const computeEngineApi = new gcp.projects.Service("computeEngineApi", {
+//     service: "compute.googleapis.com",
+// });
+
+// const kubernetesEngineApi = new gcp.projects.Service("kubernetesEngineApi", {
+//     service: "container.googleapis.com",
+// });
 
 // Create a new network
 const gkeNetwork = new gcp.compute.Network("gke-network", {
@@ -189,13 +199,18 @@ const postgresUser = new sql.User("postgres-user", {
 });
 
 // Create a Kubernetes provider instance that uses our cluster from above
-const k8sProvider = new k8s.Provider("k8sProvider", {
+const k8sProvider = new k8s.Provider("k8s-provider", {
     kubeconfig: clusterKubeconfig,
 });
+
+const mandooNamespace = new k8s.core.v1.Namespace("mandoo", {
+    metadata: { name: "mandoo" }
+}, { provider: k8sProvider });
 
 const dockerRegistrySecret = new k8s.core.v1.Secret("ghcr-credentials", {
     metadata: {
         name: "ghcr-credentials",
+        namespace: mandooNamespace.metadata.name,
     },
     type: "kubernetes.io/dockerconfigjson",
     stringData: {
@@ -219,6 +234,7 @@ const privateIp = postgresInstance.ipAddresses.apply(ipAddresses =>
 );
 // Deploy your Docker image
 const dockerImage = new k8s.apps.v1.Deployment(appLabels.app + "-deployment", {
+    metadata: { name: appLabels.app + "-deployment", namespace: mandooNamespace.metadata.name },
     spec: {
         selector: { matchLabels: appLabels },
         replicas: 3,
@@ -247,6 +263,7 @@ const dockerImage = new k8s.apps.v1.Deployment(appLabels.app + "-deployment", {
 const service = new k8s.core.v1.Service(appLabels.app + "-service", {
     metadata: {
         labels: appLabels,
+        namespace: mandooNamespace.metadata.name
     },
     spec: {
         type: "LoadBalancer",
@@ -258,6 +275,75 @@ const service = new k8s.core.v1.Service(appLabels.app + "-service", {
         selector: appLabels, // This should match the labels of the pods you want to expose
     },
 }, { provider: k8sProvider });
+
+
+// const certManager = new k8s.yaml.ConfigGroup("cert-manager", {
+//     files: [
+//         "https://github.com/jetstack/cert-manager/releases/download/v1.15.1/cert-manager.yaml"
+//     ],
+// }, { provider: k8sProvider, dependsOn: [mandooNamespace] });
+
+// const letsEncryptClusterIssuer = new k8s.apiextensions.CustomResource("letsencrypt-clusterissuer", {
+//     apiVersion: "cert-manager.io/v1",
+//     kind: "ClusterIssuer",
+//     metadata: { name: "letsencrypt-prod", namespace: mandooNamespace.metadata.name },
+//     spec: {
+//         acme: {
+//             server: "https://acme-v02.api.letsencrypt.org/directory",
+//             email: registeredDomainEmail,
+//             privateKeySecretRef: { name: "letsencrypt-prod" },
+//             solvers: [{
+//                 http01: { ingress: { class: "nginx" } }
+//             }]
+//         }
+//     }
+// }, { provider: k8sProvider });
+
+// const secretName = "tanjonggroup-com-tls";
+// // Create a Certificate for your domain
+// const domainCertificate = new k8s.apiextensions.CustomResource("tanjong-domain-cert", {
+//     apiVersion: "cert-manager.io/v1",
+//     kind: "Certificate",
+//     metadata: { name: "tanjong-domain-cert", namespace: mandooNamespace.metadata.name },
+//     spec: {
+//         secretName,
+//         issuerRef: { name: "letsencrypt-prod", kind: "ClusterIssuer" },
+//         commonName: registeredDomain,
+//         dnsNames: [registeredDomain]
+//     }
+// }, { provider: k8sProvider });
+
+// const tanjongGroupIngress = new k8s.networking.v1.Ingress("tanjonggroup-ingress", {
+//     metadata: {
+//         name: "tanjonggroup-ingress",
+//         // Ensure this namespace matches the namespace of your service
+//         namespace: mandooNamespace.metadata.name,
+//     },
+//     spec: {
+//         rules: [{
+//             host: registeredDomain,
+//             http: {
+//                 paths: [{
+//                     path: "/", // Adjust the path as needed
+//                     pathType: "Prefix",
+//                     backend: {
+//                         service: {
+//                             name: service.metadata.name,
+//                             port: {
+//                                 number: 80, // Adjust the service port as needed
+//                             },
+//                         },
+//                     },
+//                 }],
+//             },
+//         }],
+//         // If you're using cert-manager for TLS certificates, include this
+//         tls: [{
+//             hosts: [registeredDomain],
+//             secretName, // This should match the secretName in your Certificate
+//         }],
+//     },
+// }, { provider: k8sProvider });
 
 // Export some values for use elsewhere
 export const networkName = gkeNetwork.name;
